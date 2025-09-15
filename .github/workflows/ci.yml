@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coding-standards:
+    name: Coding Standards (PHP 8.4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer
+
+      - name: Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install deps (no dev-scripts)
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPStan (max level)
+        run: vendor/bin/phpstan analyse --no-progress
+
+      - name: PHP-CS-Fixer (dry-run)
+        run: |
+          if [ -f .php-cs-fixer.php ]; then
+            vendor/bin/php-cs-fixer fix --diff --dry-run
+          else
+            echo "No .php-cs-fixer.php; skipping."
+          fi
+
+  tests:
+    name: Tests (PHP ${{ matrix.php }} • ${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+        browser: ['chromium', 'firefox', 'webkit']
+
+    env:
+      PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
+      PLAYWRIGHT_HEADLESS: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer, phpunit
+
+      - name: Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install PHP deps
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Node.js (for Playwright browsers)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Playwright (${{ matrix.browser }})
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: PHPUnit (Mink driver testsuite)
+        run: vendor/bin/phpunit --colors=always

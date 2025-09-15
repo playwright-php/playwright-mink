@@ -1,0 +1,35 @@
+{
+    "name": "smnandre/mink-playwright-driver",
+    "description": "A Mink driver powered by Playwright PHP (Chromium/Firefox/WebKit).",
+    "type": "library",
+    "license": "MIT",
+    "repositories": [   
+        {
+            "type": "path",
+            "url": "../../smnandre/playwrightphp",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "playwright-php/playwright": "dev-main",
+        "behat/mink": "^1.10",
+        "symfony/clock": "^7.3"
+    },
+    "require-dev": {
+        "mink/driver-testsuite": "dev-master",
+         "phpunit/phpunit": "^8.5.22 || ^9.5.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "PlaywrightPHP\\Mink\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PlaywrightPHP\\Mink\\Tests\\": "tests/"
+        }
+    }
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<phpunit colors="true" bootstrap="vendor/autoload.php">
+    <php>
+        <var name="driver_config_factory" value="PlaywrightPHP\Mink\Tests\Config::getInstance" />
+    </php>
+
+    <testsuites>
+        <testsuite name="Functional tests">
+            <directory>vendor/mink/driver-testsuite/tests</directory>
+        </testsuite>
+<!--        &lt;!&ndash; if needed to add more tests &ndash;&gt;-->
+<!--        <testsuite name="Driver tests">-->
+<!--            <directory>./tests/</directory>-->
+<!--        </testsuite>-->
+    </testsuites>
+
+    <filter>
+        <whitelist>
+            <directory>./src</directory>
+        </whitelist>
+    </filter>
+
+    <listeners>
+        <listener class="Symfony\Bridge\PhpUnit\SymfonyTestsListener"/>
+    </listeners>
+</phpunit>
