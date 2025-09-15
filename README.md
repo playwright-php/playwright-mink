@@ -2,19 +2,15 @@
 <img src="https://github.com/playwright-php/.github/raw/main/profile/playwright-php.png" alt="Playwright PHP" />
 
 &nbsp; ![PHP Version](https://img.shields.io/badge/PHP-8.3+-05971B?labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
-&nbsp; ![CI](https://img.shields.io/github/actions/workflow/status/playwright-php/playwright-mink-driver/CI.yaml?branch=main&label=Tests&color=1D8D23&labelColor=09161E&logoColor=FFFFFF)
-&nbsp; ![Release](https://img.shields.io/github/v/release/playwright-php/playwright-mink-driver?label=Stable&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
-&nbsp; ![License](https://img.shields.io/github/license/playwright-php/playwright-mink-driver?label=License&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
+&nbsp; ![CI](https://img.shields.io/github/actions/workflow/status/playwright-php/playwright-mink/CI.yaml?branch=main&label=Tests&color=1D8D23&labelColor=09161E&logoColor=FFFFFF)
+&nbsp; ![Release](https://img.shields.io/github/v/release/playwright-php/playwright-mink?label=Stable&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
+&nbsp; ![License](https://img.shields.io/github/license/playwright-php/playwright-mink?label=License&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
 
 </div>
 
-# PlaywrightPHP - Mink Driver
+# Playwright PHP - Mink Driver
 
-A [Mink](https://mink.behat.org/) driver powered by **Playwright PHP**.  
-It brings modern browser automation (Chromium, Firefox, WebKit) to the Behat/Mink ecosystem.
-
-> [!IMPORTANT]
-> Some tests are currently skipped due to Playwright PHP limitations (drag-and-drop, window/popup handling).
+A [Mink](https://mink.behat.org/) driver powered by **[Playwright PHP](https://github.com/playwright-php)**.
 
 ## Features
 
@@ -29,18 +25,20 @@ It brings modern browser automation (Chromium, Firefox, WebKit) to the Behat/Min
 
 ## Installation
 
-```bash
-composer require --dev smnandre/mink-playwright-driver
-```
+**Requirements**
 
-You also need Node.js and Playwright browsers:
+- PHP 8.3 or higher
+- [Playwright PHP](https://github.com/playwright-php/playwright) (installed automatically)
+
+You can install the driver via Composer:
 
 ```bash
-npm install playwright
-npx playwright install chromium
+composer require --dev playwright-php/playwright-mink
 ```
 
 ## Usage
+
+### Basic Example
 
 ```php
 use Behat\Mink\Session;
@@ -57,16 +55,9 @@ $session->stop();
 
 ## Testing
 
-This driver is validated against the official
-[`minkphp/driver-testsuite`](https://github.com/minkphp/driver-testsuite).
+This driver is validated against the official [`minkphp/driver-testsuite`](https://github.com/minkphp/driver-testsuite).
 
-### Install dependencies
-
-```bash
-composer install
-```
-
-### Start the test server
+### Starting the test server
 
 ```bash
 vendor/bin/mink-test-server
@@ -78,10 +69,6 @@ vendor/bin/mink-test-server
 vendor/bin/phpunit
 ```
 
-## CI Matrix
+## License
 
-The GitHub Actions workflow runs:
-
-- PHP 8.3 & 8.4
-- Browsers: Chromium, Firefox, WebKit
-- Coding standards (PHPStan + PHP-CS-Fixer)
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
