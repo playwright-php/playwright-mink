@@ -85,5 +85,9 @@ jobs:
       - name: Install Playwright (${{ matrix.browser }})
         run: npx playwright install --with-deps ${{ matrix.browser }}
 
+      - name: Start Mink test server
+        run: vendor/bin/mink-test-server > mink-test-server.log 2>&1 &
+        shell: bash
+
       - name: PHPUnit (Mink driver testsuite)
         run: vendor/bin/phpunit --colors=always
