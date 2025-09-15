@@ -1,7 +1,7 @@
 <?php
 
 $licence = <<<'EOF'
-This file is part of the playwright-php/playwright package.
+This file is part of the Playwright PHP community project.
 For the full copyright and license information, please view
 the LICENSE file that was distributed with this source code.
 EOF;

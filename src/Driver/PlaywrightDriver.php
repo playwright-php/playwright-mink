@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
- * This file is part of the playwright-php/playwright package.
+ * This file is part of the Playwright PHP community project.
  * For the full copyright and license information, please view
  * the LICENSE file that was distributed with this source code.
  */
@@ -23,6 +23,11 @@ use PlaywrightPHP\Page\PageInterface;
 use PlaywrightPHP\PlaywrightClient;
 use PlaywrightPHP\PlaywrightFactory;
 
+/**
+ * Playwright powered driver for Behat/Mink.
+ *
+ * @author Simon André
+ */
 final class PlaywrightDriver extends CoreDriver
 {
     private PlaywrightClient $client;
@@ -65,6 +70,7 @@ final class PlaywrightDriver extends CoreDriver
     {
         try {
             $this->client = PlaywrightFactory::create();
+
             $browserType = match ($this->browserType) {
                 'chromium' => $this->client->chromium(),
                 'firefox' => $this->client->firefox(),
@@ -72,26 +78,29 @@ final class PlaywrightDriver extends CoreDriver
                 default => $this->client->chromium(),
             };
 
-            // Configure builder based on provided options
-            $builder = $browserType;
-            $builder = $builder->withHeadless($this->headless);
+            $builder = $browserType->withHeadless($this->headless);
+
             if (isset($this->launchOptions['slowMo']) && is_int($this->launchOptions['slowMo'])) {
                 $builder = $builder->withSlowMo($this->launchOptions['slowMo']);
             }
+
             if (isset($this->launchOptions['args']) && is_array($this->launchOptions['args'])) {
                 /** @var array<int, string> $args */
                 $args = array_values(array_filter($this->launchOptions['args'], 'is_string'));
                 $builder = $builder->withArgs($args);
             }
+
             $this->browser = $builder->launch();
-            /** @var array<string, mixed> $contextOptions */
+
             $contextOptions = $this->contextOptions;
             $this->context = $this->browser->newContext($contextOptions);
             $this->page = $this->context->newPage();
             $this->frameScope = null;
+
             $this->page->events()->onResponse(function (ResponseInterface $r): void {
                 $this->lastResponse = $r;
             });
+
             if (!empty($this->headers) || null !== $this->basicAuth) {
                 $this->installHeaderRouting();
             }
@@ -102,7 +111,7 @@ final class PlaywrightDriver extends CoreDriver
 
     public function isStarted(): bool
     {
-        return isset($this->browser) && isset($this->context) && isset($this->page);
+        return isset($this->browser, $this->context, $this->page);
     }
 
     public function stop(): void
@@ -111,7 +120,7 @@ final class PlaywrightDriver extends CoreDriver
             if (isset($this->browser)) {
                 try {
                     $this->browser->close();
-                } catch (\Throwable $e) { /* swallow on shutdown */
+                } catch (\Throwable) { /* swallow on shutdown */
                 }
             }
         } finally {
@@ -120,7 +129,7 @@ final class PlaywrightDriver extends CoreDriver
             $this->frameScope = null;
             $this->lastResponse = null;
             $this->headerRoutingInstalled = false;
-            // Ensure next call to Session::visit() restarts everything
+
             unset($this->page, $this->context, $this->browser, $this->client);
         }
     }
@@ -128,25 +137,22 @@ final class PlaywrightDriver extends CoreDriver
     public function reset(): void
     {
         try {
-            // Close additional windows (popups), keep a single blank page
             $pages = $this->context->pages();
             foreach ($pages as $i => $p) {
                 if ($i > 0) {
                     try {
                         $p->close();
-                    } catch (\Throwable $e) { /* ignore */
+                    } catch (\Throwable) { /* ignore */
                     }
                 }
             }
             try {
                 $this->page = $this->context->pages()[0] ?? $this->context->newPage();
-            } catch (\Throwable $ctxErr) {
-                // If context is closed, recreate it
+            } catch (\Throwable) {
                 $this->recreateContextAndPage();
             }
             $this->page->goto('about:blank');
 
-            // Clear cookies and internal state
             $this->context->clearCookies();
             $this->headers = [];
             $this->basicAuth = null;
@@ -161,29 +167,38 @@ final class PlaywrightDriver extends CoreDriver
     public function visit(string $url): void
     {
         try {
-            $this->frameScope = null;
-            $this->lastResponse = $this->page->goto($url) ?? $this->lastResponse;
+            $this->navigateToUrl($url);
         } catch (\Throwable $e) {
-            $msg = (string) $e->getMessage();
+            $msg = $e->getMessage();
             if (str_contains($msg, 'Page not found') || str_contains($msg, 'has been closed')) {
                 try {
-                    // Attempt a light recovery first: pick an existing page or create a new one
-                    try {
-                        $this->page = $this->context->pages()[0] ?? $this->context->newPage();
-                    } catch (\Throwable $ctxErr) {
-                        // If context is closed, recreate a fresh context + page
-                        $this->recreateContextAndPage();
-                    }
-                    $this->frameScope = null;
-                    $this->lastResponse = $this->page->goto($url) ?? $this->lastResponse;
+                    $this->recoverPageOrContext();
+                    $this->navigateToUrl($url);
 
                     return;
                 } catch (\Throwable $e2) {
                     throw new DriverException('visit() failed after recovery: '.$e2->getMessage(), 0, $e2);
                 }
             }
+
             throw new DriverException('visit() failed: '.$e->getMessage(), 0, $e);
         }
+    }
+
+    private function navigateToUrl(string $url): void
+    {
+        $this->frameScope = null;
+        $this->lastResponse = $this->page->goto($url) ?? $this->lastResponse;
+    }
+
+    private function recoverPageOrContext(): void
+    {
+        try {
+            $this->page = $this->context->pages()[0] ?? $this->context->newPage();
+        } catch (\Throwable) {
+            $this->recreateContextAndPage();
+        }
+        $this->frameScope = null;
     }
 
     public function getCurrentUrl(): string
@@ -214,17 +229,18 @@ final class PlaywrightDriver extends CoreDriver
 
             return;
         }
+
         $this->basicAuth = ['username' => (string) $user, 'password' => $password];
         $this->installHeaderRouting();
     }
 
     public function switchToWindow(?string $name = null): void
     {
-        // Ensure any pending page events (popups) are flushed
         try {
             $this->page->waitForEvents();
         } catch (\Throwable) {
         }
+
         $pages = $this->context->pages();
         if (null === $name) {
             $this->page = $pages[0] ?? $this->page;
@@ -232,7 +248,7 @@ final class PlaywrightDriver extends CoreDriver
 
             return;
         }
-        // If popups not registered yet, tick once more
+
         if (count($pages) < 2) {
             try {
                 $this->page->waitForEvents();
@@ -243,11 +259,13 @@ final class PlaywrightDriver extends CoreDriver
 
         foreach ($pages as $p) {
             $winName = '';
+
             try {
                 $n = $p->evaluate('() => window.name');
                 $winName = is_string($n) ? $n : '';
             } catch (\Throwable) {
             }
+
             if ($winName === $name || $p->title() === $name || str_contains($p->url(), $name)) {
                 $this->page = $p;
                 $this->frameScope = null;
@@ -255,7 +273,7 @@ final class PlaywrightDriver extends CoreDriver
                 return;
             }
         }
-        // No matching window found -> Mink expects a DriverException here
+
         throw new DriverException("Window not found: $name");
     }
 
@@ -277,10 +295,8 @@ final class PlaywrightDriver extends CoreDriver
 
             return;
         }
-        // When given a plain name, search by id or name attribute on iframe
         $escaped = addslashes($name);
-        $selector = 'xpath='.
-            "//iframe[@name=\"$escaped\"] | //iframe[@id=\"$escaped\"]";
+        $selector = 'xpath='."//iframe[@name=\"$escaped\"] | //iframe[@id=\"$escaped\"]";
         $this->frameScope = $this->page->frameLocator($selector);
     }
 
@@ -299,12 +315,10 @@ final class PlaywrightDriver extends CoreDriver
     {
         $url = $this->page->url() ?: 'http://localhost/';
         if (null === $value) {
-            // Delegate deletion to vendor API which handles all variants
             $this->context->deleteCookie($name);
 
             return;
         }
-        // Encode to keep special characters (e.g., semicolons) valid
         $encoded = rawurlencode($value);
         $this->context->addCookies([[
             'name' => $name,
@@ -336,14 +350,12 @@ final class PlaywrightDriver extends CoreDriver
 
     public function getScreenshot(): string
     {
-        // Use locator screenshot without a path to return binary image data
         if ($this->frameScope) {
             $data = $this->frameScope->locator(':root')->screenshot(null, ['fullPage' => true]);
         } else {
             $data = $this->page->locator(':root')->screenshot(null, ['fullPage' => true]);
         }
 
-        // Transport returns base64-encoded PNG; decode before returning to Mink
         if (is_string($data)) {
             $decoded = base64_decode($data, true);
 
@@ -353,24 +365,15 @@ final class PlaywrightDriver extends CoreDriver
         return '';
     }
 
-    /**
-     * Recreate a fresh browser context and page on the current browser, and
-     * re-install any sticky header routing and state that should persist across navigations.
-     */
     private function recreateContextAndPage(): void
     {
         try {
-            // Try to create a fresh context off the existing browser
-            /** @var array<string, mixed> $contextOptions */
             $contextOptions = $this->contextOptions;
             $this->context = $this->browser->newContext($contextOptions);
             $this->page = $this->context->newPage();
-        } catch (\Throwable $e) {
-            // As a last resort, relaunch the browser entirely
+        } catch (\Throwable) {
             $this->start();
         }
-
-        // Re-attach response listener and header routing/state
         $this->frameScope = null;
         $this->lastResponse = null;
         $this->headerRoutingInstalled = false;
@@ -384,7 +387,6 @@ final class PlaywrightDriver extends CoreDriver
      */
     public function getWindowNames(): array
     {
-        // Tick page event pump to register popups into the context
         $deadline = microtime(true) + 1.0;
         while (microtime(true) < $deadline) {
             try {
@@ -402,7 +404,7 @@ final class PlaywrightDriver extends CoreDriver
                 $name = is_string($n) && '' !== $n ? $n : null;
             } catch (\Throwable) {
             }
-            if (!$name) {
+            if (null === $name) {
                 $title = $p->title();
                 $name = '' !== $title ? $title : ($p->url() ?: "window#$i");
             }
@@ -419,9 +421,6 @@ final class PlaywrightDriver extends CoreDriver
         return '' !== $title ? $title : ($this->page->url() ?: 'window#0');
     }
 
-    /**
-     * @return array<string>
-     */
     protected function findElementXpaths(string $xpath): array
     {
         $count = $this->locator($xpath)->count();
@@ -481,11 +480,11 @@ final class PlaywrightDriver extends CoreDriver
     }
 
     /**
-     * @return string|array<string>|null
+     * @return list<string>|string|null
      */
     public function getValue(string $xpath): string|array|null
     {
-        return $this->safe(function () use ($xpath) {
+        return $this->safe(function () use ($xpath): string|array|null {
             $element = $this->first($xpath);
             $tagVal = $element->evaluate('el => el.tagName.toLowerCase()');
             $tag = is_string($tagVal) ? $tagVal : '';
@@ -523,9 +522,17 @@ final class PlaywrightDriver extends CoreDriver
             }
 
             if ('select' === $tag) {
-                $isMultiple = (bool) $element->evaluate('el => el.multiple === true');
+                $isMultiple = (bool) $element->evaluate('el => !!el.multiple');
                 if ($isMultiple) {
-                    $values = $element->evaluate('el => Array.from(el.selectedOptions).map(o => o.value || (o.textContent || \"\").trim())');
+                    $values = $element->evaluate('el => Array.from(el.options)
+                        .filter(o => o.selected)
+                        .map(o => {
+                            const hasAttr = o.hasAttribute("value");
+                            if (hasAttr) return o.getAttribute("value");
+                            const v = o.value;
+                            if (v !== undefined && v !== null && v !== "") return v;
+                            return (o.textContent || "").trim();
+                        })');
                     if (!is_array($values)) {
                         return [];
                     }
@@ -538,29 +545,39 @@ final class PlaywrightDriver extends CoreDriver
 
                     return $asStrings;
                 }
-                // Single select
-                $val = $element->evaluate('el => { const o = el.selectedOptions[0]; if (!o) return ""; return o.value || (o.textContent || "").trim(); }');
+                $val = $element->evaluate('el => {
+                    const o = el.options[el.selectedIndex] || el.options[0] || null;
+                    if (!o) return "";
+                    if (o.hasAttribute("value")) return o.getAttribute("value");
+                    const v = o.value;
+                    if (v !== undefined && v !== null && v !== "") return v;
+                    return (o.textContent || "").trim();
+                }');
 
                 return is_string($val) ? $val : '';
             }
 
-            // Text-like inputs and textarea
-            return $element->inputValue();
+            return (string) $element->inputValue();
         });
     }
 
     /**
-     * @param string|bool|array<string> $value
+     * Set the value of a form element identified by XPath.
+     * Handles text, checkbox, radio, select, and file inputs.
+     *
+     * @throws DriverException
+     */
+    /**
+     * @param array<string>|string|bool $value
      */
     public function setValue(string $xpath, $value): void
     {
         $element = $this->first($xpath);
 
-        // 1. Handle multi-select
         if (is_array($value)) {
-            $this->safe(function () use ($element, $value) {
-                $element->selectOption($value);
-            });
+            // Ensure array of strings for selectOption
+            $stringValues = array_values(array_filter(array_map(static fn ($v): string => (string) $v, $value), static fn (string $s): bool => '' !== $s));
+            $this->safe(fn () => $element->selectOption($stringValues));
 
             return;
         }
@@ -568,16 +585,9 @@ final class PlaywrightDriver extends CoreDriver
         $tag = $this->safe(fn () => $element->evaluate('el => el.tagName.toLowerCase()'));
         $type = $this->safe(fn () => $element->getAttribute('type'));
 
-        // 2. Handle checkbox state
         if (is_bool($value)) {
             if ('input' === $tag && 'checkbox' === $type) {
-                $this->safe(function () use ($element, $value) {
-                    if ($value) {
-                        $element->check();
-                    } else {
-                        $element->uncheck();
-                    }
-                });
+                $this->safe(fn () => $value ? $element->check() : $element->uncheck());
 
                 return;
             }
@@ -586,16 +596,12 @@ final class PlaywrightDriver extends CoreDriver
 
         $textValue = (string) $value;
 
-        // 3. Handle file inputs
         if ('input' === $tag && 'file' === $type) {
-            $this->safe(function () use ($element, $textValue) {
-                $element->setInputFiles([$textValue]);
-            });
+            $this->safe(fn () => $element->setInputFiles([$textValue]));
 
             return;
         }
 
-        // 4. Handle single-select by value or label
         if ('select' === $tag) {
             $this->safe(function () use ($element, $textValue) {
                 $selected = $element->selectOption(['value' => $textValue]);
@@ -607,7 +613,6 @@ final class PlaywrightDriver extends CoreDriver
             return;
         }
 
-        // 5. Handle radio buttons
         if ('input' === $tag && 'radio' === $type) {
             $this->safe(function () use ($element, $textValue) {
                 $element->evaluate('(el, value) => {
@@ -627,16 +632,22 @@ final class PlaywrightDriver extends CoreDriver
             return;
         }
 
-        // 6. Handle all other text-like inputs
         $this->safe(function () use ($element, $textValue) {
             $element->fill($textValue);
-            // Fire input + keyup to satisfy tests relying on key events
-            $element->evaluate('el => {
-                el.dispatchEvent(new Event("input", { bubbles: true }));
-                el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, cancelable: true }));
-                el.dispatchEvent(new Event("change", { bubbles: true }));
-            }');
+            $this->dispatchInputChangeEvents($element);
         });
+    }
+
+    /**
+     * Dispatches input, keyup, and change events for text-like inputs.
+     */
+    private function dispatchInputChangeEvents(LocatorInterface $element): void
+    {
+        $element->evaluate('el => {
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, cancelable: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+        }');
     }
 
     public function check(string $xpath): void
@@ -663,7 +674,15 @@ final class PlaywrightDriver extends CoreDriver
 
             if ('select' === $tag) {
                 if ($multiple) {
-                    $existingRaw = $element->evaluate('el => Array.from(el.selectedOptions).map(o => o.value || (o.textContent || \"\").trim())');
+                    $existingRaw = $element->evaluate('el => Array.from(el.options)
+                        .filter(o => o.selected)
+                        .map(o => {
+                            const hasAttr = o.hasAttribute("value");
+                            if (hasAttr) return o.getAttribute("value");
+                            const v = o.value;
+                            if (v !== undefined && v !== null && v !== "") return v;
+                            return (o.textContent || "").trim();
+                        })');
                     $existing = [];
                     if (is_array($existingRaw)) {
                         foreach ($existingRaw as $v) {
@@ -687,8 +706,7 @@ final class PlaywrightDriver extends CoreDriver
 
             if ('input' === $tag && 'radio' === $type) {
                 $name = $element->getAttribute('name');
-                if (!$name) {
-                    // If it's a radio button without a name, we can only click it if its own value matches.
+                if (null === $name || '' === $name) {
                     $currentValue = $element->getAttribute('value');
                     if ($currentValue === $value) {
                         $element->click();
@@ -696,7 +714,6 @@ final class PlaywrightDriver extends CoreDriver
                         throw new DriverException(sprintf('Cannot select radio button with value "%s" as it has no name attribute to find the group.', $value));
                     }
                 } else {
-                    // Find the correct radio in the group and click it.
                     $scope = $this->frameScope ?? $this->page;
                     $scope->locator(sprintf('input[type="radio"][name="%s"][value="%s"]', addslashes($name), addslashes($value)))->click();
                 }
@@ -731,8 +748,6 @@ final class PlaywrightDriver extends CoreDriver
     public function attachFile(string $xpath, string $path): void
     {
         $element = $this->first($xpath);
-        // We can't use `fill` for file inputs, so we use `setInputFiles`.
-        // This is one of the few cases where we need to check the element type before acting.
         $this->safe(function () use ($element, $path) {
             $tag = $element->evaluate('el => el.tagName.toLowerCase()');
             $type = $element->getAttribute('type');
@@ -865,7 +880,6 @@ final class PlaywrightDriver extends CoreDriver
 
     public function wait(int $timeout, string $condition): bool
     {
-        // Poll the condition using vendor evaluate() until true or timeout
         $deadline = microtime(true) + ($timeout / 1000);
         $expr = '() => !!('.$this->normalizeCondition($condition).')';
 
@@ -876,7 +890,6 @@ final class PlaywrightDriver extends CoreDriver
                     return true;
                 }
             } catch (\Throwable) {
-                // Ignore intermittent evaluation errors during wait
             }
             usleep(100_000);
         }
@@ -925,7 +938,6 @@ final class PlaywrightDriver extends CoreDriver
             return;
         }
         if (!isset($this->context)) {
-            // Not started yet; defer routing installation until start().
             return;
         }
         $this->context->route('**/*', function (Route $route): void {
@@ -998,9 +1010,11 @@ final class PlaywrightDriver extends CoreDriver
             if (str_starts_with($s, 'return ')) {
                 return "() => { $s }";
             }
+
             if ($isIife) {
                 return "() => ( $s )";
             }
+
             if ($isAnonFunction || $isArrowFunction) {
                 return "() => (( $s )())";
             }
@@ -1009,14 +1023,13 @@ final class PlaywrightDriver extends CoreDriver
         }
 
         if ($isIife) {
-            // Wrap in parentheses to force function-expression call to be parsed as an expression
             return "() => ( $s )";
         }
+
         if ($isAnonFunction || $isArrowFunction) {
             return "() => { ( $s )(); }";
         }
 
-        // executeScript: just run statements; return value ignored
         return "() => { $s; }";
     }
 
@@ -1033,8 +1046,6 @@ final class PlaywrightDriver extends CoreDriver
         return $trim;
     }
 
-    // normalizeKey removed (unused)
-
     private function mapModifier(?string $modifier): ?string
     {
         return match ($modifier) {
@@ -1048,23 +1059,19 @@ final class PlaywrightDriver extends CoreDriver
 
     private function normalizeVisibleText(string $text): string
     {
-        // Replace NBSP with regular space
         $text = str_replace("\xC2\xA0", ' ', $text);
-        // Collapse all whitespace (including newlines) into single spaces
-        $text = (string) preg_replace('/\s+/u', ' ', $text);
+        $replaced = preg_replace('/\s+/u', ' ', $text);
+        $text = is_string($replaced) ? $replaced : $text;
 
         return trim($text);
     }
 
     /**
-     * Wraps Playwright exceptions into Mink DriverException for consistency.
-     */
-    /**
-     * @template T
+     * @template TReturn
      *
-     * @param callable():T $fn
+     * @param callable():TReturn $fn
      *
-     * @return T
+     * @return TReturn
      */
     private function safe(callable $fn): mixed
     {
