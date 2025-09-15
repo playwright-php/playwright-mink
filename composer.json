@@ -1,26 +1,39 @@
 {
-    "name": "smnandre/mink-playwright-driver",
-    "description": "A Mink driver powered by Playwright PHP (Chromium/Firefox/WebKit).",
-    "type": "library",
+    "name": "playwright-php/playwright-mink",
+    "description": "Mink driver powered by Playwright PHP (Chromium/Firefox/WebKit).",
     "license": "MIT",
-    "repositories": [   
+    "type": "library",
+    "keywords": [
+        "php",
+        "mink",
+        "mink-driver",
+        "browser",
+        "behat",
+        "mink-extension",
+        "playwright-php",
+        "playwright"
+    ],
+    "authors": [
         {
-            "type": "path",
-            "url": "../../smnandre/playwrightphp",
-            "options": {
-                "symlink": true
-            }
+            "name": "Simon André",
+            "email": "smn.andre@gmail.com",
+            "homepage": "https://github.com/smnandre"
+        },
+        {
+            "name": "Playwright PHP Contributors",
+            "homepage": "https://github.com/playwright-php"
         }
     ],
+    "homepage": "https://playwright-php.dev/mink",
     "require": {
         "php": "^8.3",
-        "playwright-php/playwright": "dev-main",
         "behat/mink": "^1.10",
-        "symfony/clock": "^7.3"
+        "playwright-php/playwright": "dev-main",
+        "symfony/clock": "^7.3 || ^8.0"
     },
     "require-dev": {
         "mink/driver-testsuite": "dev-master",
-         "phpunit/phpunit": "^8.5.22 || ^9.5.11"
+        "phpunit/phpunit": "^8.5.22 || ^9.5.11"
     },
     "autoload": {
         "psr-4": {
@@ -30,6 +43,12 @@
     "autoload-dev": {
         "psr-4": {
             "PlaywrightPHP\\Mink\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "thanks": {
+            "name": "playwright-php/playwright",
+            "url": "https://github.com/playwright-php/playwright"
         }
     }
 }
