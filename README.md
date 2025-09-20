@@ -35,7 +35,7 @@ composer require --dev playwright-php/playwright-mink
 
 ```php
 use Behat\Mink\Session;
-use PlaywrightPHP\Mink\Driver\PlaywrightDriver;
+use Playwright\Mink\Driver\PlaywrightDriver;
 
 $driver = new PlaywrightDriver(browserType: 'chromium', headless: true);
 $session = new Session($driver);

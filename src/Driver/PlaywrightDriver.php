@@ -3,28 +3,32 @@
 declare(strict_types=1);
 
 /*
- * This file is part of the Playwright PHP community project.
- * For the full copyright and license information, please view
- * the LICENSE file that was distributed with this source code.
+ * This file is part of the community-maintained Playwright PHP project.
+ * It is not affiliated with or endorsed by Microsoft.
+ *
+ * (c) 2025-Present - Playwright PHP <https://github.com/playwright-php>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
-namespace PlaywrightPHP\Mink\Driver;
+namespace Playwright\Mink\Driver;
 
 use Behat\Mink\Driver\CoreDriver;
 use Behat\Mink\Exception\DriverException;
 use Behat\Mink\KeyModifier;
-use PlaywrightPHP\Browser\BrowserContextInterface;
-use PlaywrightPHP\Browser\BrowserInterface;
-use PlaywrightPHP\Frame\FrameLocatorInterface;
-use PlaywrightPHP\Locator\LocatorInterface;
-use PlaywrightPHP\Network\ResponseInterface;
-use PlaywrightPHP\Network\Route;
-use PlaywrightPHP\Page\PageInterface;
-use PlaywrightPHP\PlaywrightClient;
-use PlaywrightPHP\PlaywrightFactory;
+use Playwright\Browser\BrowserContextInterface;
+use Playwright\Browser\BrowserInterface;
+use Playwright\Frame\FrameLocatorInterface;
+use Playwright\Locator\LocatorInterface;
+use Playwright\Network\ResponseInterface;
+use Playwright\Network\Route;
+use Playwright\Page\PageInterface;
+use Playwright\PlaywrightClient;
+use Playwright\PlaywrightFactory;
 
 /**
- * Playwright powered driver for Behat/Mink.
+ * Playwright-powered driver for Behat/Mink.
  *
  * @author Simon André
  */

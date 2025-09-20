@@ -3,16 +3,20 @@
 declare(strict_types=1);
 
 /*
- * This file is part of the Playwright PHP community project.
- * For the full copyright and license information, please view
- * the LICENSE file that was distributed with this source code.
+ * This file is part of the community-maintained Playwright PHP project.
+ * It is not affiliated with or endorsed by Microsoft.
+ *
+ * (c) 2025-Present - Playwright PHP <https://github.com/playwright-php>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
-namespace PlaywrightPHP\Mink\Tests;
+namespace Playwright\Mink\Tests;
 
 use Behat\Mink\Driver\DriverInterface;
 use Behat\Mink\Tests\Driver\AbstractConfig;
-use PlaywrightPHP\Mink\Driver\PlaywrightDriver;
+use Playwright\Mink\Driver\PlaywrightDriver;
 
 /**
  * Configuration for the Mink driver tests suite.

@@ -37,12 +37,12 @@
     },
     "autoload": {
         "psr-4": {
-            "PlaywrightPHP\\Mink\\": "src/"
+            "Playwright\\Mink\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "PlaywrightPHP\\Mink\\Tests\\": "tests/"
+            "Playwright\\Mink\\Tests\\": "tests/"
         }
     },
     "extra": {
