@@ -1,7 +1,7 @@
 <div align="center">
 <a href="https://github.com/playwright-php"><img src="https://github.com/playwright-php/.github/raw/main/profile/playwright-php.png" alt="Playwright PHP" /></a>
 
-&nbsp; ![PHP Version](https://img.shields.io/badge/PHP-8.3+-05971B?labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
+&nbsp; ![PHP Version](https://img.shields.io/badge/PHP-8.2+-05971B?labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
 &nbsp; ![CI](https://img.shields.io/github/actions/workflow/status/playwright-php/playwright-mink/CI.yaml?branch=main&label=Tests&color=1D8D23&labelColor=09161E&logoColor=FFFFFF)
 &nbsp; ![Release](https://img.shields.io/github/v/release/playwright-php/playwright-mink?label=Stable&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
 &nbsp; ![License](https://img.shields.io/github/license/playwright-php/playwright-mink?label=License&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)

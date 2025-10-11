@@ -26,7 +26,7 @@
     ],
     "homepage": "https://playwright-php.dev/mink",
     "require": {
-        "php": "^8.3",
+        "php": "^8.2",
         "behat/mink": "^1.10",
         "playwright-php/playwright": "dev-main",
         "symfony/clock": "^7.3 || ^8.0"
