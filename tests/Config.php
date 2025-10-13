@@ -53,6 +53,11 @@ final class Config extends AbstractConfig
         );
     }
 
+    protected function supportsCss(): bool
+    {
+        return true;
+    }
+
     public function skipMessage($testCase, $test): ?string
     {
         $base = parent::skipMessage($testCase, $test);
@@ -60,10 +65,13 @@ final class Config extends AbstractConfig
             return $base;
         }
 
+        // jQuery UI drag & drop uses mousedown/mousemove/mouseup events with complex state management
+        // Playwright's dragTo() uses HTML5 drag & drop API (drag/drop events) which jQuery UI doesn't recognize
+        // Would require custom mouse event simulation with precise timing and coordinates
         if ('Behat\\Mink\\Tests\\Driver\\Js\\JavascriptTest' === $testCase
             && in_array($test, ['testDragDrop', 'testDragDropOntoHiddenItself'], true)
         ) {
-            return 'Skipped: jQuery UI drag&drop not supported by Playwright dragAndDrop yet.';
+            return 'jQuery UI drag & drop incompatible with Playwright dragTo() API';
         }
 
         if ('Behat\\Mink\\Tests\\Driver\\Js\\SessionResetTest' === $testCase

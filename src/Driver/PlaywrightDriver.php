@@ -34,6 +34,15 @@ use Playwright\PlaywrightFactory;
  */
 final class PlaywrightDriver extends CoreDriver
 {
+    /** Polling interval for waiting operations (microseconds) */
+    private const POLL_INTERVAL_US = 50_000; // 50ms
+
+    /** Polling interval for condition waiting (microseconds) */
+    private const WAIT_POLL_INTERVAL_US = 100_000; // 100ms
+
+    /** Timeout for window discovery (seconds) */
+    private const WINDOW_DISCOVERY_TIMEOUT_S = 1.0;
+
     private PlaywrightClient $client;
 
     private BrowserInterface $browser;
@@ -254,10 +263,7 @@ final class PlaywrightDriver extends CoreDriver
         }
 
         if (count($pages) < 2) {
-            try {
-                $this->page->waitForEvents();
-            } catch (\Throwable) {
-            }
+            $this->pollForWindows();
             $pages = $this->context->pages();
         }
 
@@ -391,14 +397,7 @@ final class PlaywrightDriver extends CoreDriver
      */
     public function getWindowNames(): array
     {
-        $deadline = microtime(true) + 1.0;
-        while (microtime(true) < $deadline) {
-            try {
-                $this->page->waitForEvents();
-            } catch (\Throwable) {
-            }
-            usleep(50_000);
-        }
+        $this->pollForWindows();
 
         $names = [];
         foreach ($this->context->pages() as $i => $p) {
@@ -490,78 +489,18 @@ final class PlaywrightDriver extends CoreDriver
     {
         return $this->safe(function () use ($xpath): string|array|null {
             $element = $this->first($xpath);
-            $tagVal = $element->evaluate('el => el.tagName.toLowerCase()');
-            $tag = is_string($tagVal) ? $tagVal : '';
-            $typeVal = $element->getAttribute('type');
-            $type = is_string($typeVal) ? $typeVal : null;
+            $tag = $element->evaluate('el => el.tagName.toLowerCase()');
+            $tag = is_string($tag) ? $tag : '';
+            $type = $element->getAttribute('type');
+            $type = is_string($type) ? $type : null;
 
-            if ('input' === $tag && 'checkbox' === $type) {
-                return $element->isChecked() ? ($element->getAttribute('value') ?? 'on') : null;
-            }
-
-            if ('input' === $tag && 'radio' === $type) {
-                $rv = $element->evaluate('(el) => {
-                    const name = el.getAttribute("name");
-                    if (!name) {
-                        return el.checked ? (el.getAttribute("value") ?? "on") : null;
-                    }
-                    const group = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
-                    const sameForm = (r) => r.form === el.form;
-                    const checked = group.find(r => sameForm(r) && r.checked);
-                    if (!checked) return null;
-                    return checked.getAttribute("value") ?? "on";
-                }');
-
-                return (is_string($rv) || null === $rv) ? $rv : null;
-            }
-
-            if ('option' === $tag) {
-                $val = $element->getAttribute('value');
-                if (null !== $val) {
-                    return $val;
-                }
-                $text = $element->innerText();
-
-                return $this->normalizeVisibleText($text);
-            }
-
-            if ('select' === $tag) {
-                $isMultiple = (bool) $element->evaluate('el => !!el.multiple');
-                if ($isMultiple) {
-                    $values = $element->evaluate('el => Array.from(el.options)
-                        .filter(o => o.selected)
-                        .map(o => {
-                            const hasAttr = o.hasAttribute("value");
-                            if (hasAttr) return o.getAttribute("value");
-                            const v = o.value;
-                            if (v !== undefined && v !== null && v !== "") return v;
-                            return (o.textContent || "").trim();
-                        })');
-                    if (!is_array($values)) {
-                        return [];
-                    }
-                    $asStrings = [];
-                    foreach ($values as $v) {
-                        if (is_string($v)) {
-                            $asStrings[] = $v;
-                        }
-                    }
-
-                    return $asStrings;
-                }
-                $val = $element->evaluate('el => {
-                    const o = el.options[el.selectedIndex] || el.options[0] || null;
-                    if (!o) return "";
-                    if (o.hasAttribute("value")) return o.getAttribute("value");
-                    const v = o.value;
-                    if (v !== undefined && v !== null && v !== "") return v;
-                    return (o.textContent || "").trim();
-                }');
-
-                return is_string($val) ? $val : '';
-            }
-
-            return (string) $element->inputValue();
+            return match (true) {
+                'input' === $tag && 'checkbox' === $type => $this->getCheckboxValue($element),
+                'input' === $tag && 'radio' === $type => $this->getRadioValue($element),
+                'option' === $tag => $this->getOptionValue($element),
+                'select' === $tag => $this->getSelectValue($element),
+                default => $element->inputValue(),
+            };
         });
     }
 
@@ -569,89 +508,36 @@ final class PlaywrightDriver extends CoreDriver
      * Set the value of a form element identified by XPath.
      * Handles text, checkbox, radio, select, and file inputs.
      *
-     * @throws DriverException
-     */
-    /**
      * @param array<string>|string|bool $value
+     *
+     * @throws DriverException
      */
     public function setValue(string $xpath, $value): void
     {
         $element = $this->first($xpath);
 
         if (is_array($value)) {
-            // Ensure array of strings for selectOption
-            $stringValues = array_values(array_filter(array_map(static fn ($v): string => (string) $v, $value), static fn (string $s): bool => '' !== $s));
-            $this->safe(fn () => $element->selectOption($stringValues));
+            $this->setMultiSelectValue($element, $value);
+
+            return;
+        }
+
+        if (is_bool($value)) {
+            $this->setCheckboxValue($element, $value);
 
             return;
         }
 
         $tag = $this->safe(fn () => $element->evaluate('el => el.tagName.toLowerCase()'));
         $type = $this->safe(fn () => $element->getAttribute('type'));
-
-        if (is_bool($value)) {
-            if ('input' === $tag && 'checkbox' === $type) {
-                $this->safe(fn () => $value ? $element->check() : $element->uncheck());
-
-                return;
-            }
-            throw new DriverException('Boolean value is only supported for checkboxes');
-        }
-
         $textValue = (string) $value;
 
-        if ('input' === $tag && 'file' === $type) {
-            $this->safe(fn () => $element->setInputFiles([$textValue]));
-
-            return;
-        }
-
-        if ('select' === $tag) {
-            $this->safe(function () use ($element, $textValue) {
-                $selected = $element->selectOption(['value' => $textValue]);
-                if (empty($selected)) {
-                    $element->selectOption(['label' => $textValue]);
-                }
-            });
-
-            return;
-        }
-
-        if ('input' === $tag && 'radio' === $type) {
-            $this->safe(function () use ($element, $textValue) {
-                $element->evaluate('(el, value) => {
-                    const name = el.getAttribute("name");
-                    if (!name) {
-                        const ownValue = el.getAttribute("value");
-                        if (ownValue === value) { el.click(); return; }
-                        throw new Error("Radio button group must have a name attribute.");
-                    }
-                    const radios = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
-                    const target = radios.find(r => r.form === el.form && (r.getAttribute("value") ?? "on") === value);
-                    if (!target) throw new Error("Radio button not found in same form");
-                    target.click();
-                }', $textValue);
-            });
-
-            return;
-        }
-
-        $this->safe(function () use ($element, $textValue) {
-            $element->fill($textValue);
-            $this->dispatchInputChangeEvents($element);
-        });
-    }
-
-    /**
-     * Dispatches input, keyup, and change events for text-like inputs.
-     */
-    private function dispatchInputChangeEvents(LocatorInterface $element): void
-    {
-        $element->evaluate('el => {
-            el.dispatchEvent(new Event("input", { bubbles: true }));
-            el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, cancelable: true }));
-            el.dispatchEvent(new Event("change", { bubbles: true }));
-        }');
+        match (true) {
+            'input' === $tag && 'file' === $type => $this->safe(fn () => $element->setInputFiles([$textValue])),
+            'select' === $tag => $this->setSelectValue($element, $textValue),
+            'input' === $tag && 'radio' === $type => $this->setRadioValue($element, $textValue),
+            default => $this->setTextValue($element, $textValue),
+        };
     }
 
     public function check(string $xpath): void
@@ -678,24 +564,10 @@ final class PlaywrightDriver extends CoreDriver
 
             if ('select' === $tag) {
                 if ($multiple) {
-                    $existingRaw = $element->evaluate('el => Array.from(el.options)
-                        .filter(o => o.selected)
-                        .map(o => {
-                            const hasAttr = o.hasAttribute("value");
-                            if (hasAttr) return o.getAttribute("value");
-                            const v = o.value;
-                            if (v !== undefined && v !== null && v !== "") return v;
-                            return (o.textContent || "").trim();
-                        })');
-                    $existing = [];
-                    if (is_array($existingRaw)) {
-                        foreach ($existingRaw as $v) {
-                            if (is_string($v)) {
-                                $existing[] = $v;
-                            }
-                        }
-                    }
-                    $newValues = array_values(array_unique(array_merge($existing, [$value])));
+                    // For multi-select, need to get existing values and append the new one
+                    $currentValues = $this->getValue($xpath);
+                    $existing = is_array($currentValues) ? $currentValues : [];
+                    $newValues = array_values(array_unique([...$existing, $value]));
                     $element->selectOption($newValues);
                 } else {
                     try {
@@ -709,18 +581,7 @@ final class PlaywrightDriver extends CoreDriver
             }
 
             if ('input' === $tag && 'radio' === $type) {
-                $name = $element->getAttribute('name');
-                if (null === $name || '' === $name) {
-                    $currentValue = $element->getAttribute('value');
-                    if ($currentValue === $value) {
-                        $element->click();
-                    } else {
-                        throw new DriverException(sprintf('Cannot select radio button with value "%s" as it has no name attribute to find the group.', $value));
-                    }
-                } else {
-                    $scope = $this->frameScope ?? $this->page;
-                    $scope->locator(sprintf('input[type="radio"][name="%s"][value="%s"]', addslashes($name), addslashes($value)))->click();
-                }
+                $this->setRadioValue($element, $value);
 
                 return;
             }
@@ -791,72 +652,68 @@ final class PlaywrightDriver extends CoreDriver
     {
         $key = is_int($char) ? chr($char) : (string) $char;
         $code = is_int($char) ? $char : (1 === strlen($key) ? ord($key) : 0);
-        $mod = $this->mapModifier($modifier);
-        $this->safe(function () use ($xpath, $key, $code, $mod): void {
-            $el = $this->first($xpath);
-            $el->focus();
-            $el->evaluate('(el, arg) => {
-                const { key, code, mod } = arg;
+        $modKey = $this->getModifierKey($modifier);
+
+        $this->safe(function () use ($xpath, $key, $code, $modKey): void {
+            $this->first($xpath)->evaluate('(el, arg) => {
                 const ev = new KeyboardEvent("keypress", {
-                    key,
+                    key: arg.key,
                     bubbles: true,
                     cancelable: true,
-                    altKey: mod === "Alt",
-                    ctrlKey: mod === "Control",
-                    metaKey: mod === "Meta",
-                    shiftKey: mod === "Shift",
+                    altKey: arg.mod === "Alt",
+                    ctrlKey: arg.mod === "Control",
+                    metaKey: arg.mod === "Meta",
+                    shiftKey: arg.mod === "Shift",
                 });
-                Object.defineProperty(ev, "keyCode", { value: code });
-                Object.defineProperty(ev, "which", { value: code });
+                Object.defineProperty(ev, "keyCode", { value: arg.code });
+                Object.defineProperty(ev, "which", { value: arg.code });
                 el.dispatchEvent(ev);
-            }', ['key' => $key, 'code' => $code, 'mod' => $mod]);
+            }', ['key' => $key, 'code' => $code, 'mod' => $modKey]);
         });
     }
 
     public function keyDown(string $xpath, $char, ?string $modifier = null): void
     {
         $key = is_int($char) ? chr($char) : (string) $char;
-        $mod = $this->mapModifier($modifier);
-        $this->safe(function () use ($xpath, $key, $mod): void {
-            $el = $this->first($xpath);
-            $el->evaluate('(el, arg) => {
-                const { key, mod } = arg;
+        $modKey = $this->getModifierKey($modifier);
+
+        $this->safe(function () use ($xpath, $key, $modKey): void {
+            $this->first($xpath)->evaluate('(el, arg) => {
                 const ev = new KeyboardEvent("keydown", {
-                    key,
+                    key: arg.key,
                     bubbles: true,
                     cancelable: true,
-                    altKey: mod === "Alt",
-                    ctrlKey: mod === "Control",
-                    metaKey: mod === "Meta",
-                    shiftKey: mod === "Shift",
+                    altKey: arg.mod === "Alt",
+                    ctrlKey: arg.mod === "Control",
+                    metaKey: arg.mod === "Meta",
+                    shiftKey: arg.mod === "Shift",
                 });
                 el.dispatchEvent(ev);
-            }', ['key' => $key, 'mod' => $mod]);
+            }', ['key' => $key, 'mod' => $modKey]);
         });
     }
 
     public function keyUp(string $xpath, $char, ?string $modifier = null): void
     {
         $key = is_int($char) ? chr($char) : (string) $char;
-        $mod = $this->mapModifier($modifier);
         $code = is_int($char) ? $char : (1 === strlen($key) ? ord($key) : 0);
-        $this->safe(function () use ($xpath, $key, $code, $mod): void {
-            $el = $this->first($xpath);
-            $el->evaluate('(el, arg) => {
-                const { key, mod, code } = arg;
+        $modKey = $this->getModifierKey($modifier);
+
+        $this->safe(function () use ($xpath, $key, $code, $modKey): void {
+            $this->first($xpath)->evaluate('(el, arg) => {
                 const ev = new KeyboardEvent("keyup", {
-                    key,
+                    key: arg.key,
                     bubbles: true,
                     cancelable: true,
-                    altKey: mod === "Alt",
-                    ctrlKey: mod === "Control",
-                    metaKey: mod === "Meta",
-                    shiftKey: mod === "Shift",
+                    altKey: arg.mod === "Alt",
+                    ctrlKey: arg.mod === "Control",
+                    metaKey: arg.mod === "Meta",
+                    shiftKey: arg.mod === "Shift",
                 });
-                Object.defineProperty(ev, "keyCode", { value: code });
-                Object.defineProperty(ev, "which", { value: code });
+                Object.defineProperty(ev, "keyCode", { value: arg.code });
+                Object.defineProperty(ev, "which", { value: arg.code });
                 el.dispatchEvent(ev);
-            }', ['key' => $key, 'mod' => $mod, 'code' => $code]);
+            }', ['key' => $key, 'code' => $code, 'mod' => $modKey]);
         });
     }
 
@@ -885,7 +742,12 @@ final class PlaywrightDriver extends CoreDriver
     public function wait(int $timeout, string $condition): bool
     {
         $deadline = microtime(true) + ($timeout / 1000);
-        $expr = '() => !!('.$this->normalizeCondition($condition).')';
+        // Normalize condition: remove "return " prefix if present
+        $cond = trim($condition);
+        if (str_starts_with($cond, 'return ')) {
+            $cond = substr($cond, 7);
+        }
+        $expr = "() => !!($cond)";
 
         while (microtime(true) < $deadline) {
             try {
@@ -895,7 +757,7 @@ final class PlaywrightDriver extends CoreDriver
                 }
             } catch (\Throwable) {
             }
-            usleep(100_000);
+            usleep(self::WAIT_POLL_INTERVAL_US);
         }
 
         return false;
@@ -1001,56 +863,48 @@ final class PlaywrightDriver extends CoreDriver
         });
     }
 
+    /**
+     * Wrap a script in a function for Playwright evaluation.
+     */
     private function wrapScript(string $script, bool $returns): string
     {
         $s = trim($script);
-        $s = rtrim($s, ";\n\r\t ");
-        $isAnonFunction = 1 === preg_match('/^\s*(?:async\s+)?function\s*\(/', $s);
-        $isArrowFunction = 1 === preg_match('/^\s*(?:async\s+)?\(?[^=]*=>/', $s);
-        $isIife = 1 === preg_match('/^\s*\(.*\)\s*\(.*\)\s*$/s', $s)
-            || 1 === preg_match('/^\s*(?:async\s+)?function\s*\([^)]*\)\s*\{[\s\S]*\}\s*\(.*\)\s*$/s', $s);
+        // Remove trailing semicolon for better expression handling
+        $s = rtrim($s, ';');
 
-        if ($returns) {
-            if (str_starts_with($s, 'return ')) {
-                return "() => { $s }";
-            }
-
-            if ($isIife) {
-                return "() => ( $s )";
-            }
-
-            if ($isAnonFunction || $isArrowFunction) {
-                return "() => (( $s )())";
-            }
-
-            return "() => ( $s )";
+        // If it's already a return statement, wrap in a function
+        if (str_starts_with($s, 'return ')) {
+            return "() => { $s; }";
         }
 
+        // Detect IIFE patterns: (function(){...})() or (() => {})()
+        $isIife = (bool) preg_match('/^\s*\([^)]*\)\s*\(/', $s);
         if ($isIife) {
-            return "() => ( $s )";
+            return $returns ? "() => ( $s )" : "() => { $s; }";
         }
 
-        if ($isAnonFunction || $isArrowFunction) {
-            return "() => { ( $s )(); }";
+        // Detect anonymous function expressions: function () {...} or function () {...}()
+        // Check if it's an anonymous function (not a named function)
+        if (str_starts_with($s, 'function ') && !preg_match('/^function\s+\w+/', $s)) {
+            // Check if it already has trailing () to invoke itself (IIFE without outer parens)
+            if (preg_match('/}\s*\(\s*\)$/', $s)) {
+                // Already an IIFE like: function () {...}()
+                // Wrap in parens to ensure it's an expression, not a statement
+                return $returns ? "() => ( $s )" : "() => { ( $s ); }";
+            }
+
+            // Not yet invoked, wrap and call it: function () {...}
+            return $returns ? "() => (( $s )())" : "() => { ( $s )(); }";
         }
 
-        return "() => { $s; }";
+        // Default: expression for returns, statement for execute
+        return $returns ? "() => ( $s )" : "() => { $s; }";
     }
 
-    private function normalizeCondition(string $condition): string
-    {
-        $trim = trim($condition);
-        if ('' === $trim) {
-            return 'false';
-        }
-        if (str_starts_with($trim, 'return ')) {
-            return substr($trim, 7);
-        }
-
-        return $trim;
-    }
-
-    private function mapModifier(?string $modifier): ?string
+    /**
+     * Get the Playwright modifier key name from Mink's KeyModifier constant.
+     */
+    private function getModifierKey(?string $modifier): ?string
     {
         return match ($modifier) {
             KeyModifier::CTRL => 'Control',
@@ -1061,6 +915,22 @@ final class PlaywrightDriver extends CoreDriver
         };
     }
 
+    /**
+     * Wait for window/page events to be processed.
+     * Polls for a short duration to allow async window operations to complete.
+     */
+    private function pollForWindows(): void
+    {
+        $deadline = microtime(true) + self::WINDOW_DISCOVERY_TIMEOUT_S;
+        while (microtime(true) < $deadline) {
+            try {
+                $this->page->waitForEvents();
+            } catch (\Throwable) {
+            }
+            usleep(self::POLL_INTERVAL_US);
+        }
+    }
+
     private function normalizeVisibleText(string $text): string
     {
         $text = str_replace("\xC2\xA0", ' ', $text);
@@ -1068,6 +938,132 @@ final class PlaywrightDriver extends CoreDriver
         $text = is_string($replaced) ? $replaced : $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function setMultiSelectValue(LocatorInterface $element, array $value): void
+    {
+        $stringValues = [];
+        foreach ($value as $v) {
+            if (!is_scalar($v) && !$v instanceof \Stringable) {
+                continue;
+            }
+            $str = (string) $v;
+            if ('' !== $str) {
+                $stringValues[] = $str;
+            }
+        }
+        $this->safe(fn () => $element->selectOption($stringValues));
+    }
+
+    private function setCheckboxValue(LocatorInterface $element, bool $value): void
+    {
+        $tag = $this->safe(fn () => $element->evaluate('el => el.tagName.toLowerCase()'));
+        $type = $this->safe(fn () => $element->getAttribute('type'));
+
+        if ('input' !== $tag || 'checkbox' !== $type) {
+            throw new DriverException('Boolean value is only supported for checkboxes');
+        }
+
+        $this->safe(fn () => $value ? $element->check() : $element->uncheck());
+    }
+
+    private function setSelectValue(LocatorInterface $element, string $value): void
+    {
+        $this->safe(function () use ($element, $value) {
+            $selected = $element->selectOption(['value' => $value]);
+            if (empty($selected)) {
+                $element->selectOption(['label' => $value]);
+            }
+        });
+    }
+
+    private function setRadioValue(LocatorInterface $element, string $value): void
+    {
+        $this->safe(function () use ($element, $value) {
+            $element->evaluate('(el, value) => {
+                const name = el.getAttribute("name");
+                if (!name) {
+                    const ownValue = el.getAttribute("value");
+                    if (ownValue === value) { el.click(); return; }
+                    throw new Error("Radio button group must have a name attribute.");
+                }
+                const radios = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
+                const target = radios.find(r => r.form === el.form && (r.getAttribute("value") ?? "on") === value);
+                if (!target) throw new Error("Radio button not found in same form");
+                target.click();
+            }', $value);
+        });
+    }
+
+    private function setTextValue(LocatorInterface $element, string $value): void
+    {
+        $this->safe(function () use ($element, $value) {
+            $element->fill($value);
+            $element->evaluate('el => {
+                el.dispatchEvent(new Event("input", { bubbles: true }));
+                el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+            }');
+        });
+    }
+
+    private function getCheckboxValue(LocatorInterface $element): ?string
+    {
+        return $element->isChecked() ? ($element->getAttribute('value') ?? 'on') : null;
+    }
+
+    private function getRadioValue(LocatorInterface $element): ?string
+    {
+        $rv = $element->evaluate('(el) => {
+            const name = el.getAttribute("name");
+            if (!name) {
+                return el.checked ? (el.getAttribute("value") ?? "on") : null;
+            }
+            const group = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
+            const sameForm = (r) => r.form === el.form;
+            const checked = group.find(r => sameForm(r) && r.checked);
+            if (!checked) return null;
+            return checked.getAttribute("value") ?? "on";
+        }');
+
+        return (is_string($rv) || null === $rv) ? $rv : null;
+    }
+
+    private function getOptionValue(LocatorInterface $element): string
+    {
+        $val = $element->getAttribute('value');
+        if (null !== $val) {
+            return $val;
+        }
+
+        return $this->normalizeVisibleText($element->innerText());
+    }
+
+    /** @return list<string>|string */
+    private function getSelectValue(LocatorInterface $element): string|array
+    {
+        $isMultiple = (bool) $element->evaluate('el => !!el.multiple');
+        if (!$isMultiple) {
+            return $element->inputValue();
+        }
+
+        $selected = $element->locator('option')->all();
+        $values = [];
+        foreach ($selected as $option) {
+            $isSelected = (bool) $option->evaluate('el => el.selected');
+            if ($isSelected) {
+                $val = $option->getAttribute('value');
+                if (null === $val) {
+                    $val = $this->normalizeVisibleText($option->innerText());
+                }
+                $values[] = $val;
+            }
+        }
+
+        return $values;
     }
 
     /**

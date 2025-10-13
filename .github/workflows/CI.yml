@@ -20,7 +20,7 @@ jobs:
         with:
           php-version: '8.4'
           coverage: none
-          tools: composer
+          tools: composer, phpstan, php-cs-fixer
 
       - name: Composer cache
         uses: actions/cache@v4
@@ -33,12 +33,12 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: PHPStan (max level)
-        run: vendor/bin/phpstan analyse --no-progress
+        run: phpstan analyse --no-progress
 
       - name: PHP-CS-Fixer (dry-run)
         run: |
           if [ -f .php-cs-fixer.php ]; then
-            vendor/bin/php-cs-fixer fix --diff --dry-run
+            php-cs-fixer fix --diff --dry-run
           else
             echo "No .php-cs-fixer.php; skipping."
           fi
@@ -80,14 +80,44 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
-      - name: Install Playwright (${{ matrix.browser }})
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ms-playwright-${{ runner.os }}-
+
+      - name: Install Playwright (browsers + system deps)
+        run: vendor/bin/playwright-install --with-deps
 
       - name: Start Mink test server
         run: vendor/bin/mink-test-server > mink-test-server.log 2>&1 &
         shell: bash
 
+      - name: Wait for Mink test server to be ready
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:8002/ >/dev/null; then
+              echo "Mink test server is up"; exit 0;
+            fi
+            sleep 1;
+          done
+          echo "Mink test server did not become ready in time"; exit 1
+
       - name: PHPUnit (Mink driver testsuite)
         run: vendor/bin/phpunit --colors=always
+
+      - name: Show Mink server log on failure
+        if: failure()
+        run: |
+          echo "==== mink-test-server.log ===="
+          tail -n +1 mink-test-server.log || true
+
+      - name: Upload Mink server log artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mink-test-server-log-${{ matrix.php }}-${{ matrix.browser }}
+          path: mink-test-server.log
+          if-no-files-found: ignore

@@ -4,11 +4,11 @@
     "license": "MIT",
     "type": "library",
     "keywords": [
-        "php",
         "mink",
         "mink-driver",
         "browser",
         "behat",
+        "behat-driver",
         "mink-extension",
         "playwright-php",
         "playwright"
@@ -28,8 +28,7 @@
     "require": {
         "php": "^8.2",
         "behat/mink": "^1.10",
-        "playwright-php/playwright": "dev-main",
-        "symfony/clock": "^7.3 || ^8.0"
+        "playwright-php/playwright": "dev-main"
     },
     "require-dev": {
         "mink/driver-testsuite": "dev-master",
@@ -46,6 +45,9 @@
         }
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.x-dev"
+        },
         "thanks": {
             "name": "playwright-php/playwright",
             "url": "https://github.com/playwright-php/playwright"

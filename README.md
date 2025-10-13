@@ -12,6 +12,13 @@
 
 A [Mink](https://mink.behat.org/) driver powered by **[Playwright PHP](https://github.com/playwright-php)**.
 
+
+> [!IMPORTANT]  
+> This package is **experimental**. Its API may still change before the upcoming `1.0` release.  
+>  
+> Curious or interested? Try it out, [share your feedback](https://github.com/playwright-php/playwright-mink/issues), or ideas!
+
+
 ## Features
 
 - Run real browsers: Chromium, Firefox, WebKit (headless or not)  
@@ -22,7 +29,7 @@ A [Mink](https://mink.behat.org/) driver powered by **[Playwright PHP](https://g
 
 **Requirements**
 
-- PHP 8.3 or higher
+- PHP 8.2 or higher
 - [Playwright PHP](https://github.com/playwright-php/playwright)
 
 **Install the driver**
@@ -52,6 +59,8 @@ $session->stop();
 
 This driver is validated against the official [`minkphp/driver-testsuite`](https://github.com/minkphp/driver-testsuite).
 
+**Test Results**: 212/218 tests passing (97.2%) with 491 assertions
+
 **Start the test server**
 
 ```bash
@@ -63,6 +72,13 @@ vendor/bin/mink-test-server
 ```bash
 vendor/bin/phpunit
 ```
+
+### Known Limitations
+
+6 tests are skipped due to known limitations:
+
+- **jQuery UI Drag & Drop** (2 tests): jQuery UI uses mouse events API, Playwright uses HTML5 Drag & Drop API - these are incompatible
+- **Popup Window Tracking** (4 tests): Async event timing with `window.open()` requires improvements in Playwright PHP event handling
 
 ## License
 
