@@ -95,15 +95,23 @@ jobs:
         run: vendor/bin/mink-test-server > mink-test-server.log 2>&1 &
         shell: bash
 
+      - name: Check Mink test server process
+        run: |
+          sleep 2
+          pgrep -af 'php.*8002' || (echo "No PHP server running on 8002" && exit 1)
+          netstat -tlnp || true
+        shell: bash
+
       - name: Wait for Mink test server to be ready
         run: |
           for i in {1..60}; do
-            if curl -fsS http://127.0.0.1:8002/ >/dev/null; then
+            if curl -fsS http://127.0.0.1:8002/ >/dev/null || curl -fsS http://localhost:8002/ >/dev/null; then
               echo "Mink test server is up"; exit 0;
             fi
             sleep 1;
           done
           echo "Mink test server did not become ready in time"; exit 1
+        shell: bash
 
       - name: PHPUnit (Mink driver testsuite)
         run: vendor/bin/phpunit --colors=always
