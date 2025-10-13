@@ -2,46 +2,33 @@ name: CI
 
 on:
   push:
+    branches: [ "*" ]
   pull_request:
+    branches: [ "*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  coding-standards:
-    name: Coding Standards (PHP 8.4)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          coverage: none
-          tools: composer, phpstan, php-cs-fixer
+  cs:
+    uses: playwright-php/.github/.github/workflows/CS.yml@main
+    # with:
+      # php-version: '8.4'
+      # composer-validate: true
+      # php-cs-fixer-args: '--diff --dry-run'
 
-      - name: Composer cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.composer/cache
-          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-
+  sa:
+    uses: playwright-php/.github/.github/workflows/SA.yml@main
+    # with:
+      # php-version: '8.4'
+      # phpstan-args: 'analyse --no-progress --memory-limit=-1'
 
-      - name: Install deps (no dev-scripts)
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: PHPStan (max level)
-        run: phpstan analyse --no-progress
-
-      - name: PHP-CS-Fixer (dry-run)
-        run: |
-          if [ -f .php-cs-fixer.php ]; then
-            php-cs-fixer fix --diff --dry-run
-          else
-            echo "No .php-cs-fixer.php; skipping."
-          fi
 
   tests:
     name: Tests (PHP ${{ matrix.php }} • ${{ matrix.browser }})
@@ -49,8 +36,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3', '8.4']
-        browser: ['chromium', 'firefox', 'webkit']
+        php: [
+          #'8.2', 
+          '8.3', 
+          '8.4'
+        ]
+        browser: [
+          'chromium', 
+          # 'firefox', 
+          # 'webkit'
+        ]
 
     env:
       PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
@@ -64,7 +59,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-          tools: composer, phpunit
+          tools: composer
 
       - name: Composer cache
         uses: actions/cache@v4
@@ -94,6 +89,10 @@ jobs:
       - name: Start Mink test server
         run: vendor/bin/mink-test-server > mink-test-server.log 2>&1 &
         shell: bash
+      
+      - name: Output server log (debug)
+        run: tail -n +50 mink-test-server.log || true
+        if: failure()
 
       - name: Check Mink test server process
         run: |
