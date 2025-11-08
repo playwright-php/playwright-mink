@@ -28,7 +28,7 @@
     "require": {
         "php": "^8.2",
         "behat/mink": "^1.10",
-        "playwright-php/playwright": "dev-main"
+        "playwright-php/playwright": "^1.0"
     },
     "require-dev": {
         "mink/driver-testsuite": "dev-master",
@@ -46,7 +46,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.x-dev"
+            "dev-main": "1.x-dev"
         },
         "thanks": {
             "name": "playwright-php/playwright",
