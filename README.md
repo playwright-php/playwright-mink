@@ -8,79 +8,97 @@
 
 </div>
 
-# Playwright PHP - Mink Driver
+# Playwright PHP Mink Driver
 
-A [Mink](https://mink.behat.org/) driver powered by **[Playwright PHP](https://github.com/playwright-php)**.
+A [Mink](https://mink.behat.org/) driver powered by
+[Playwright PHP](https://github.com/playwright-php/playwright).
 
-
-> [!IMPORTANT]  
-> This package is **experimental**. Its API may still change before the upcoming `1.0` release.  
->  
-> Curious or interested? Try it out, [share your feedback](https://github.com/playwright-php/playwright-mink/issues), or ideas!
-
-
-## Features
-
-- Run real browsers: Chromium, Firefox, WebKit (headless or not)  
-- Control the DOM: navigation, forms, cookies, JS, events  
-- Handle windows, iframes, uploads, screenshots, dialogs
+Use it to keep an existing Mink test suite while running its browser interactions
+in Chromium, Firefox, or WebKit through Playwright.
 
 ## Installation
 
-**Requirements**
-
-- PHP 8.2 or higher
-- [Playwright PHP](https://github.com/playwright-php/playwright)
-
-**Install the driver**
+The driver requires PHP 8.2 or later, Mink 1.10 or later, and Playwright PHP 1.x.
 
 ```bash
 composer require --dev playwright-php/playwright-mink
+vendor/bin/playwright-install --browsers
 ```
 
 ## Usage
 
+Create the driver, pass it to a Mink session, and use the regular Mink API:
+
 ```php
+<?php
+
 use Behat\Mink\Session;
 use Playwright\Mink\Driver\PlaywrightDriver;
 
-$driver = new PlaywrightDriver(browserType: 'chromium', headless: true);
+$driver = new PlaywrightDriver(
+    browserType: 'chromium',
+    headless: true,
+);
+
 $session = new Session($driver);
-
 $session->start();
-$session->visit('https://example.org');
 
-echo $session->getPage()->getText();
+try {
+    $session->visit('https://example.com');
 
-$session->stop();
+    echo $session->getPage()->getText();
+} finally {
+    $session->stop();
+}
 ```
+
+The constructor accepts:
+
+- `browserType`: `chromium`, `firefox`, or `webkit`;
+- `headless`: whether to run without a visible browser window;
+- `launchOptions`: browser launch options such as `slowMo` and `args`;
+- `contextOptions`: options passed to the Playwright browser context.
+
+```php
+$driver = new PlaywrightDriver(
+    browserType: 'firefox',
+    headless: false,
+    launchOptions: [
+        'slowMo' => 100,
+    ],
+    contextOptions: [
+        'viewport' => ['width' => 1440, 'height' => 900],
+        'locale' => 'en-US',
+    ],
+);
+```
+
+See [Driver support](docs/driver-support.md) for the tested Mink surface and
+known limitations.
 
 ## Testing
 
-This driver is validated against the official [`minkphp/driver-testsuite`](https://github.com/minkphp/driver-testsuite).
+The driver is tested against the official
+[`minkphp/driver-testsuite`](https://github.com/minkphp/driver-testsuite).
 
-**Test Results**: 212/218 tests passing (97.2%) with 491 assertions
-
-**Start the test server**
+Install dependencies, start its test server, then run PHPUnit:
 
 ```bash
+composer install
+vendor/bin/playwright-install --browsers
 vendor/bin/mink-test-server
 ```
 
-**Run tests**
+In another terminal:
 
 ```bash
 vendor/bin/phpunit
 ```
 
-### Known Limitations
-
-6 tests are skipped due to known limitations:
-
-- **jQuery UI Drag & Drop** (2 tests): jQuery UI uses mouse events API, Playwright uses HTML5 Drag & Drop API - these are incompatible
-- **Popup Window Tracking** (4 tests): Async event timing with `window.open()` requires improvements in Playwright PHP event handling
+The test suite currently excludes scenarios that depend on jQuery UI drag and
+drop or asynchronous popup discovery. These limitations are documented in
+[Driver support](docs/driver-support.md).
 
 ## License
 
-This package is released by the [Playwright PHP](https://playwright-php.dev) 
-project under the MIT License. See the [LICENSE](LICENSE) file for details.
+Playwright PHP Mink Driver is released under the [MIT License](LICENSE).
