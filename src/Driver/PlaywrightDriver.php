@@ -613,7 +613,11 @@ final class PlaywrightDriver extends CoreDriver
     public function attachFile(string $xpath, string $path): void
     {
         $element = $this->first($xpath);
-        $this->safe(function () use ($element, $path) {
+        $absolutePath = realpath($path);
+        if (false === $absolutePath) {
+            throw new DriverException(sprintf('File "%s" does not exist', $path));
+        }
+        $this->safe(function () use ($element, $absolutePath) {
             $tag = $element->evaluate('el => el.tagName.toLowerCase()');
             $type = $element->getAttribute('type');
 
@@ -621,7 +625,7 @@ final class PlaywrightDriver extends CoreDriver
                 throw new DriverException('attachFile: element is not a file input');
             }
 
-            $element->setInputFiles([$path]);
+            $element->setInputFiles([$absolutePath]);
         });
     }
 

@@ -7,6 +7,9 @@
         <testsuite name="Functional tests">
             <directory>vendor/mink/driver-testsuite/tests</directory>
         </testsuite>
+        <testsuite name="Regression tests">
+            <file>tests/Driver/AttachFileRelativePathTest.php</file>
+        </testsuite>
     </testsuites>
     <filter>
         <whitelist>
