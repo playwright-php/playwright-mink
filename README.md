@@ -3,7 +3,7 @@
 
 &nbsp; ![PHP Version](https://img.shields.io/badge/PHP-8.2+-05971B?labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
 &nbsp; ![CI](https://img.shields.io/github/actions/workflow/status/playwright-php/playwright-mink/CI.yml?branch=main&label=Tests&color=1D8D23&labelColor=09161E&logoColor=FFFFFF)
-&nbsp; ![Release](https://img.shields.io/github/v/release/playwright-php/playwright-mink?label=Stable&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
+&nbsp; [![Release](https://img.shields.io/github/v/release/playwright-php/playwright-mink?label=Stable&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)](https://packagist.org/packages/playwright-php/playwright-mink)
 &nbsp; ![License](https://img.shields.io/github/license/playwright-php/playwright-mink?label=License&labelColor=09161E&color=1D8D23&logoColor=FFFFFF)
 
 </div>
@@ -73,10 +73,12 @@ $driver = new PlaywrightDriver(
 );
 ```
 
+## Documentation
+
 See [Driver support](docs/driver-support.md) for the tested Mink surface and
 known limitations.
 
-## Testing
+## Contributing
 
 The driver is tested against the official
 [`minkphp/driver-testsuite`](https://github.com/minkphp/driver-testsuite).
@@ -96,8 +98,8 @@ vendor/bin/phpunit
 ```
 
 The test suite currently excludes scenarios that depend on jQuery UI drag and
-drop or asynchronous popup discovery. These limitations are documented in
-[Driver support](docs/driver-support.md).
+drop or asynchronous popup discovery. These limitations are documented in the
+driver support page.
 
 ## License
 
