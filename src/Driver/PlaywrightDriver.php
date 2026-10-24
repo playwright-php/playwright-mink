@@ -107,6 +107,10 @@ final class PlaywrightDriver extends CoreDriver
                 $builder = $builder->withExecutablePath($this->launchOptions['executablePath']);
             }
 
+            if (isset($this->launchOptions['channel']) && is_string($this->launchOptions['channel'])) {
+                $builder = $builder->withChannel($this->launchOptions['channel']);
+            }
+
             $this->browser = $builder->launch();
 
             $contextOptions = $this->contextOptions;
