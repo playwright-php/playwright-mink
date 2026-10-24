@@ -45,6 +45,22 @@ final class Config extends AbstractConfig
 
         /** @var array<string, mixed> $launch */
         $launch = isset($params['launch']) && is_array($params['launch']) ? $params['launch'] : [];
+
+        $executablePath = getenv('PLAYWRIGHT_EXECUTABLE_PATH');
+        if (false !== $executablePath && '' !== $executablePath && !isset($launch['executablePath'])) {
+            $launch['executablePath'] = $executablePath;
+        }
+
+        // JSON array, since arguments may contain spaces and commas
+        $args = getenv('PLAYWRIGHT_ARGS');
+        if (false !== $args && '' !== $args && !isset($launch['args'])) {
+            $decodedArgs = json_decode($args, true, flags: \JSON_THROW_ON_ERROR);
+            if (!is_array($decodedArgs)) {
+                throw new \InvalidArgumentException('PLAYWRIGHT_ARGS must be a JSON array of strings.');
+            }
+            $launch['args'] = $decodedArgs;
+        }
+
         /** @var array<string, mixed> $context */
         $context = isset($params['context']) && is_array($params['context']) ? $params['context'] : [];
 
