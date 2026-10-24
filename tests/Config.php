@@ -38,7 +38,10 @@ final class Config extends AbstractConfig
         $browser = isset($params['browser']) && is_string($params['browser'])
             ? $params['browser']
             : (string) (getenv('PLAYWRIGHT_BROWSER') ?: 'chromium');
-        $headless = (bool) ($params['headless'] ?? (getenv('PLAYWRIGHT_HEADLESS') ?: true));
+        $headlessEnv = getenv('PLAYWRIGHT_HEADLESS');
+        $headless = (bool) ($params['headless'] ?? (
+            false === $headlessEnv || '' === $headlessEnv ? true : filter_var($headlessEnv, FILTER_VALIDATE_BOOLEAN)
+        ));
 
         /** @var array<string, mixed> $launch */
         $launch = isset($params['launch']) && is_array($params['launch']) ? $params['launch'] : [];
