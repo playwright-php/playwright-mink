@@ -113,7 +113,7 @@ final class PlaywrightDriver extends CoreDriver
 
             $this->browser = $builder->launch();
 
-            $contextOptions = $this->contextOptions;
+            $contextOptions = $this->buildContextOptions();
             $this->context = $this->browser->newContext($contextOptions);
             $this->page = $this->context->newPage();
             $this->frameScope = null;
@@ -383,10 +383,27 @@ final class PlaywrightDriver extends CoreDriver
         return '';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildContextOptions(): array
+    {
+        $contextOptions = $this->contextOptions;
+
+        // Basic auth is sent as a header (see setBasicAuth()). Credentials that never authenticate
+        // make Playwright cancel a failed challenge, so full Chromium shows the 401 page instead
+        // of its login prompt. They are never cached, so turning basic auth off still works.
+        if (!isset($contextOptions['httpCredentials'])) {
+            $contextOptions['httpCredentials'] = ['username' => '', 'password' => ''];
+        }
+
+        return $contextOptions;
+    }
+
     private function recreateContextAndPage(): void
     {
         try {
-            $contextOptions = $this->contextOptions;
+            $contextOptions = $this->buildContextOptions();
             $this->context = $this->browser->newContext($contextOptions);
             $this->page = $this->context->newPage();
         } catch (\Throwable) {
