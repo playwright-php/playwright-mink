@@ -73,6 +73,19 @@ $driver = new PlaywrightDriver(
 );
 ```
 
+`launchOptions` supports `slowMo`, `args` and `executablePath`. An executable
+path launches a Chromium-based browser that Playwright doesn't manage, such
+as Brave on macOS:
+
+```php
+$driver = new PlaywrightDriver(
+    browserType: 'chromium',
+    launchOptions: [
+        'executablePath' => '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+    ],
+);
+```
+
 ## Documentation
 
 See [Driver support](docs/driver-support.md) for the tested Mink surface and
