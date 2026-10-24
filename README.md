@@ -73,6 +73,19 @@ $driver = new PlaywrightDriver(
 );
 ```
 
+`launchOptions` supports `slowMo`, `args` and `channel`. A channel picks a
+browser build or an installed branded browser, such as full Chromium instead
+of the headless shell Playwright uses for headless runs by default:
+
+```php
+$driver = new PlaywrightDriver(
+    browserType: 'chromium',
+    launchOptions: [
+        'channel' => 'chromium',
+    ],
+);
+```
+
 ## Documentation
 
 See [Driver support](docs/driver-support.md) for the tested Mink surface and
