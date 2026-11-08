@@ -28,7 +28,7 @@
     "require": {
         "php": "^8.2",
         "behat/mink": "^1.10",
-        "playwright-php/playwright": "^1.0"
+        "playwright-php/playwright": "^1.6"
     },
     "require-dev": {
         "mink/driver-testsuite": "dev-master",
