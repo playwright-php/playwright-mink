@@ -74,14 +74,14 @@ $driver = new PlaywrightDriver(
 ```
 
 `launchOptions` supports `slowMo`, `args` and `executablePath`. An executable
-path launches a Chromium-based browser that Playwright doesn't manage, such
-as Brave on macOS:
+path launches a Chromium build that Playwright doesn't manage, such as one
+installed by the system package manager:
 
 ```php
 $driver = new PlaywrightDriver(
     browserType: 'chromium',
     launchOptions: [
-        'executablePath' => '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+        'executablePath' => '/usr/bin/chromium',
     ],
 );
 ```
