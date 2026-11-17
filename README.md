@@ -73,6 +73,19 @@ $driver = new PlaywrightDriver(
 );
 ```
 
+`launchOptions` supports `slowMo`, `args` and `executablePath`. An executable
+path launches a Chromium build that Playwright doesn't manage, such as one
+installed by the system package manager:
+
+```php
+$driver = new PlaywrightDriver(
+    browserType: 'chromium',
+    launchOptions: [
+        'executablePath' => '/usr/bin/chromium',
+    ],
+);
+```
+
 ## Documentation
 
 See [Driver support](docs/driver-support.md) for the tested Mink surface and
