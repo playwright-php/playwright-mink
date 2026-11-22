@@ -73,15 +73,28 @@ $driver = new PlaywrightDriver(
 );
 ```
 
-`launchOptions` supports `slowMo`, `args` and `executablePath`. An executable
-path launches a Chromium build that Playwright doesn't manage, such as one
-installed by the system package manager:
+`launchOptions` supports `slowMo`, `args`, `executablePath` and `channel`. An
+executable path launches a Chromium build that Playwright doesn't manage, such
+as one installed by the system package manager:
 
 ```php
 $driver = new PlaywrightDriver(
     browserType: 'chromium',
     launchOptions: [
         'executablePath' => '/usr/bin/chromium',
+    ],
+);
+```
+
+A channel picks a browser build or an installed branded browser, such as full
+Chromium instead of the headless shell Playwright uses for headless runs by
+default:
+
+```php
+$driver = new PlaywrightDriver(
+    browserType: 'chromium',
+    launchOptions: [
+        'channel' => 'chromium',
     ],
 );
 ```
