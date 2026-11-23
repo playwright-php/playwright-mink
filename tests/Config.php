@@ -51,6 +51,11 @@ final class Config extends AbstractConfig
             $launch['executablePath'] = $executablePath;
         }
 
+        $channel = getenv('PLAYWRIGHT_CHANNEL');
+        if (false !== $channel && '' !== $channel && !isset($launch['channel'])) {
+            $launch['channel'] = $channel;
+        }
+
         // JSON array, since arguments may contain spaces and commas
         $args = getenv('PLAYWRIGHT_ARGS');
         if (false !== $args && '' !== $args && !isset($launch['args'])) {

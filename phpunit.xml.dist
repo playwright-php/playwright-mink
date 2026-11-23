@@ -6,6 +6,7 @@
         <!-- To run against another browser, copy this file to phpunit.xml and set: -->
         <!--<env name="PLAYWRIGHT_BROWSER" value="chromium"/>-->
         <!--<env name="PLAYWRIGHT_HEADLESS" value="1"/>-->
+        <!--<env name="PLAYWRIGHT_CHANNEL" value="chromium"/>-->
         <!--<env name="PLAYWRIGHT_EXECUTABLE_PATH" value="/path/to/chromium"/>-->
         <!--<env name="PLAYWRIGHT_ARGS" value='["first argument", "second argument"]'/>-->
     </php>
