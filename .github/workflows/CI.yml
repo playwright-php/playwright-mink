@@ -31,7 +31,7 @@ jobs:
 
 
   tests:
-    name: Tests (PHP ${{ matrix.php }} • ${{ matrix.browser }})
+    name: Tests (PHP ${{ matrix.php }} • ${{ matrix.browser }}${{ matrix.channel && format(' • channel {0}', matrix.channel) || '' }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -46,10 +46,17 @@ jobs:
           # 'firefox', 
           # 'webkit'
         ]
+        # Headless runs use Playwright's headless shell; the "chromium" channel runs full Chromium (new headless mode)
+        channel: ['']
+        include:
+          - php: '8.4'
+            browser: 'chromium'
+            channel: 'chromium'
 
     env:
       PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
       PLAYWRIGHT_HEADLESS: '1'
+      PLAYWRIGHT_CHANNEL: ${{ matrix.channel }}
 
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +132,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: mink-test-server-log-${{ matrix.php }}-${{ matrix.browser }}
+          name: mink-test-server-log-${{ matrix.php }}-${{ matrix.browser }}${{ matrix.channel && format('-{0}', matrix.channel) || '' }}
           path: mink-test-server.log
           if-no-files-found: ignore

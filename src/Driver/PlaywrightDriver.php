@@ -113,7 +113,7 @@ final class PlaywrightDriver extends CoreDriver
 
             $this->browser = $builder->launch();
 
-            $contextOptions = $this->contextOptions;
+            $contextOptions = $this->buildContextOptions();
             $this->context = $this->browser->newContext($contextOptions);
             $this->page = $this->context->newPage();
             $this->frameScope = null;
@@ -383,10 +383,44 @@ final class PlaywrightDriver extends CoreDriver
         return '';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildContextOptions(): array
+    {
+        $contextOptions = $this->contextOptions;
+
+        // Full Chromium has no handler for an HTTP auth challenge: headless, visit() fails with
+        // net::ERR_INVALID_AUTH_CREDENTIALS; headed, it opens a login prompt. Credentials that never
+        // authenticate make Playwright answer the challenge once, then cancel it, so the 401 page shows.
+        // They aren't added elsewhere, since they turn off the HTTP cache. Basic auth itself is sent as
+        // a header (see setBasicAuth()).
+        if (!array_key_exists('httpCredentials', $contextOptions) && $this->usesFullChromium()) {
+            $contextOptions['httpCredentials'] = ['username' => '', 'password' => ''];
+        }
+
+        return $contextOptions;
+    }
+
+    /**
+     * Playwright runs the headless shell, which shows the 401 page on its own, only for headless
+     * Chromium without a channel or an executable path.
+     */
+    private function usesFullChromium(): bool
+    {
+        if (\in_array($this->browserType, ['firefox', 'webkit'], true)) {
+            return false;
+        }
+
+        return !$this->headless
+            || isset($this->launchOptions['channel'])
+            || isset($this->launchOptions['executablePath']);
+    }
+
     private function recreateContextAndPage(): void
     {
         try {
-            $contextOptions = $this->contextOptions;
+            $contextOptions = $this->buildContextOptions();
             $this->context = $this->browser->newContext($contextOptions);
             $this->page = $this->context->newPage();
         } catch (\Throwable) {
