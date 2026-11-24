@@ -16,6 +16,7 @@
         </testsuite>
         <testsuite name="Regression tests">
             <file>tests/Driver/AttachFileRelativePathTest.php</file>
+            <file>tests/Driver/ContextHttpCredentialsTest.php</file>
         </testsuite>
     </testsuites>
     <filter>

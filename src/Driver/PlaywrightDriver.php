@@ -390,14 +390,31 @@ final class PlaywrightDriver extends CoreDriver
     {
         $contextOptions = $this->contextOptions;
 
-        // Basic auth is sent as a header (see setBasicAuth()). Credentials that never authenticate
-        // make Playwright cancel a failed challenge, so full Chromium shows the 401 page instead
-        // of its login prompt. They are never cached, so turning basic auth off still works.
-        if (!isset($contextOptions['httpCredentials'])) {
+        // Full Chromium has no handler for an HTTP auth challenge: headless, visit() fails with
+        // net::ERR_INVALID_AUTH_CREDENTIALS; headed, it opens a login prompt. Credentials that never
+        // authenticate make Playwright answer the challenge once, then cancel it, so the 401 page shows.
+        // They aren't added elsewhere, since they turn off the HTTP cache. Basic auth itself is sent as
+        // a header (see setBasicAuth()).
+        if (!array_key_exists('httpCredentials', $contextOptions) && $this->usesFullChromium()) {
             $contextOptions['httpCredentials'] = ['username' => '', 'password' => ''];
         }
 
         return $contextOptions;
+    }
+
+    /**
+     * Playwright runs the headless shell, which shows the 401 page on its own, only for headless
+     * Chromium without a channel or an executable path.
+     */
+    private function usesFullChromium(): bool
+    {
+        if (\in_array($this->browserType, ['firefox', 'webkit'], true)) {
+            return false;
+        }
+
+        return !$this->headless
+            || isset($this->launchOptions['channel'])
+            || isset($this->launchOptions['executablePath']);
     }
 
     private function recreateContextAndPage(): void
